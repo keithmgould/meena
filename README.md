@@ -14,8 +14,6 @@ In conjunction Meena and the instrument create a pleasant alarm.
 0. OLED mini screen				- display the time
 0. 24V 400mA solenoid			- actuate the stick
 
-## Software overview
-
 ## Usage
 
 In an effort to keep Meena's interface clean and minimal, the **only** input is a single potentiometer.

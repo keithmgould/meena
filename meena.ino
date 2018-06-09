@@ -21,7 +21,7 @@
 SSD1306_Mini display;
 
 // arduino pins
-constexpr int potPin = 4;
+constexpr int potPin = 2; // this is ANALOG number, not GPIO number
 constexpr int sigPin = 1;
 
 // keep track of changes in potentiometer (knob)
@@ -40,7 +40,7 @@ void strikeBowl(){
 // fetch potentiometer value and scale to between 1-120
 int fetchAnalog(){
   int potVal = analogRead(potPin); // returns value in range [0,1023]
-  return 1 + int(potVal * .1163245357); // normalize to value in range [1,120]
+  return 1 + int(potVal * .038303); // normalize to value in range [1,40]
 }
 
 // beautiful example of bad programming.
@@ -127,7 +127,7 @@ void setup() {
 int fakePot = 120;
 void loop() {
   int newAnalogValue = fetchAnalog();
-  displayVal(fakePot);
+  displayVal(newAnalogValue);
   delay(100);
   fakePot--;
   if(fakePot == 1){ fakePot = 120; }

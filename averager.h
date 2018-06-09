@@ -1,6 +1,6 @@
 
 class Averager {
-	static const int numReadings = 10;
+	static const int numReadings = 5;
 
 	int readings[numReadings];      // the readings from the analog input
 	int readIndex = 0;              // the index of the current reading

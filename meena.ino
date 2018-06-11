@@ -1,95 +1,84 @@
 /*
-    Make sure before uploading code via Arduino IDE:
-    
-    0. Board is Adafruit Trinket 8MHz
-    1. Programmer is USBtinyISP
-
-    Details Here:
-    https://learn.adafruit.com/introducing-trinket/setting-up-with-arduino-ide
-
-    Here is the minimal 1306 lib that fits on a Trinket's memory:
-    https://github.com/kirknorthrop/SSD1306_minimal
+    make sure to uplaod with the sparkfun pro-micro (5V, 16MHz processor)  
 */
 
-
-// Include for OLED
-#include <SSD1306_minimal.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 #include "images/startScreen.h"
 #include "images/misc.h"
 #include "fonts/luna_fonts.h"
-#include "lib/averager.h"
 
-// instantiate our OLED display
-SSD1306_Mini display;
+// instantiate the display
+Adafruit_SSD1306 display(4);
 
-Averager averager;
 
 // arduino pins
-constexpr int potPin = 7; // this is ANALOG number, not GPIO number
+constexpr int dialPinOne = 0;
+constexpr int dialPinTwo = 7;
+constexpr int buttonPin = 4;
 constexpr int sigPin = 5;
-
-// keep track of changes in potentiometer (knob)
-int oldAnalogValue = 0;
 
 // holds individual digits
 int digits[3] = {-1};
 
+// holds dial turn quantity
+int tick = 0;
+
 // activates the solenoid for 1/10th of a second
-void strikeBowl(){
+// striking the instrument
+void strike(){
   digitalWrite(sigPin, HIGH);
   delay(100);
   digitalWrite(sigPin, LOW);
 }
 
 // fetch potentiometer value and scale to between 1-120
-int fetchAnalog(){
-  int potVal = analogRead(potPin); // returns value in range [0,1023]
-  averager.push(potVal);
-  return 1 + int(averager.getAverage() * .01173);
-}
+// int fetchAnalog(){
+//   int potVal = analogRead(potPin); // returns value in range [0,1023]
+//   averager.push(potVal);
+//   return 1 + int(averager.getAverage() * .01173);
+// }
 
 // beautiful example of bad programming.
 // TODO: just make fonts a 2D array.
 void displayDigit(int num, int pos){
   switch(num){
     case 0:
-      display.drawImage(number_0, pos, 0, 40,5); break;
+      display.drawBitmap(pos, 0,  number_0, 40, 40, 1); break;
     case 1:
-      display.drawImage(number_1, pos, 0, 40,5); break;
+      display.drawBitmap(pos, 0,  number_1, 40, 40, 1); break;
     case 2:
-      display.drawImage(number_2, pos, 0, 40,5); break;
+      display.drawBitmap(pos, 0,  number_2, 40, 40, 1); break;
     case 3:
-      display.drawImage(number_3, pos, 0, 40,5); break;
+      display.drawBitmap(pos, 0,  number_3, 40, 40, 1); break;
     case 4:
-      display.drawImage(number_4, pos, 0, 40,5); break;
+      display.drawBitmap(pos, 0,  number_4, 40, 40, 1); break;
     case 5:
-      display.drawImage(number_5, pos, 0, 40,5); break;
+      display.drawBitmap(pos, 0,  number_5, 40, 40, 1); break;
     case 6:
-      display.drawImage(number_6, pos, 0, 40,5); break;
+      display.drawBitmap(pos, 0,  number_6, 40, 40, 1); break;
     case 7:
-      display.drawImage(number_7, pos, 0, 40,5); break;
+      display.drawBitmap(pos, 0,  number_7, 40, 40, 1); break;
     case 8:
-      display.drawImage(number_8, pos, 0, 40,5); break;
+      display.drawBitmap(pos, 0,  number_8, 40, 40, 1); break;
     case 9:
-      display.drawImage(number_9, pos, 0, 40,5); break;
+      display.drawBitmap(pos, 0,  number_9, 40, 40, 1); break;
     case -1:
-      display.drawImage(number__, pos, 0, 40,5); break;
+      display.drawBitmap(pos, 0,  number__, 40, 40, 1); break;
   }
 }
 
+/* 
+   takes an integer and stores each of the digits
+   in the digits[] array.
+*/
 void extractNewDigits(int val){
   int factor = 1;
   int temp=val;
   int newDigit;
   int pos;
-
-  if(val < 100){
-    digits[2] = -1;
-  }
-  if(val< 10){
-    digits[1] = -1;
-  }
-
+  
   while(temp){
     temp /= 10;
     factor *= 10;
@@ -104,29 +93,46 @@ void extractNewDigits(int val){
   }
 }
 
+// updates OLED
 void displayVal(int val){  
-  val = constrain(val, 1, 120);
-  extractNewDigits(val);
-  displayDigit(digits[0],0);
-  displayDigit(digits[1],40);
-  displayDigit(digits[2],80);
+ val = constrain(val, 1, 120);
+ extractNewDigits(val);
+ display.clearDisplay();
+ displayDigit(digits[0],0);
+ if(val>9){ displayDigit(digits[1],40); }
+ if(val>99){ displayDigit(digits[2],80); }
+ display.display();
 }
 
 void showWelcomeScreen(){
-  display.clear();
-  display.drawImage(meena,5,3,58,3);
-  display.drawImage(spiral,75,1,49,6);
+  display.clearDisplay();
+  display.drawBitmap(0, 0,  startScreen, 128, 64, 1);
+  display.display();
   delay(3000);
 }
 
+void encoderEvent() {
+  if(digitalRead(dialPinOne) == digitalRead(dialPinTwo)){
+    tick++;
+  } else {
+    tick--;
+  }
+}
+
 void setup() {
-  display.init(0x3C);
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  attachInterrupt(digitalPinToInterrupt(dialPinOne), encoderEvent, CHANGE);
+  
   pinMode(sigPin, OUTPUT);
   pinMode(1, OUTPUT); // tmp
-//  showWelcomeScreen();
+  showWelcomeScreen();
+}
 
- display.clear();
-
+void loop(){
+  for(int i = 120; i > 0; i--){
+    displayVal(i);
+    delay(500);
+  }
 }
 
 long timerValueChangedAt;
@@ -134,28 +140,28 @@ int lastTimerValue;
 int timeRemaining;
 bool doneTillReset = false;
 
-void loop() {
-  int newTimerValue = fetchAnalog()*5;
-  if(newTimerValue != lastTimerValue){
-    timerValueChangedAt = millis();
-    lastTimerValue = newTimerValue;
-  }
+// void loopy() {
+//   int newTimerValue = fetchAnalog()*5;
+//   if(newTimerValue != lastTimerValue){
+//     timerValueChangedAt = millis();
+//     lastTimerValue = newTimerValue;
+//   }
 
-  long millisSinceChange = millis() - timerValueChangedAt;
+//   long millisSinceChange = millis() - timerValueChangedAt;
 
-  if(millisSinceChange > 3000 && !doneTillReset){
-    timeRemaining = (newTimerValue * 60 * 1000) - millisSinceChange;
-    if(timeRemaining == 0){
-      strikeBowl();
-      doneTillReset = true;
-    }
-    displayVal(timeRemaining);
-    display.drawImage(ohm,110,30,5,1);
-  }else{
-    doneTillReset = false;
-    displayVal(newTimerValue);
-    display.drawImage(empty_ohm,110,30,5,1);
-  }
+//   if(millisSinceChange > 3000 && !doneTillReset){
+//     timeRemaining = (newTimerValue * 60 * 1000) - millisSinceChange;
+//     if(timeRemaining == 0){
+//       strike();
+//       doneTillReset = true;
+//     }
+//     displayVal(timeRemaining);
+//     display.drawImage(ohm,110,30,5,1);
+//   }else{
+//     doneTillReset = false;
+//     displayVal(newTimerValue);
+//     display.drawImage(empty_ohm,110,30,5,1);
+//   }
 
-  delay(10);
-}
+//   delay(10);
+// }

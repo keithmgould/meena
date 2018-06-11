@@ -15,8 +15,9 @@
 // Include for OLED
 #include <SSD1306_minimal.h>
 #include "images/startScreen.h"
+#include "images/misc.h"
 #include "fonts/luna_fonts.h"
-#include "averager.h"
+#include "lib/averager.h"
 
 // instantiate our OLED display
 SSD1306_Mini display;
@@ -24,8 +25,8 @@ SSD1306_Mini display;
 Averager averager;
 
 // arduino pins
-constexpr int potPin = 2; // this is ANALOG number, not GPIO number
-constexpr int sigPin = 1;
+constexpr int potPin = 7; // this is ANALOG number, not GPIO number
+constexpr int sigPin = 5;
 
 // keep track of changes in potentiometer (knob)
 int oldAnalogValue = 0;
@@ -128,8 +129,33 @@ void setup() {
 
 }
 
+long timerValueChangedAt;
+int lastTimerValue;
+int timeRemaining;
+bool doneTillReset = false;
+
 void loop() {
-  int newAnalogValue = fetchAnalog()*5;
-  displayVal(newAnalogValue);
+  int newTimerValue = fetchAnalog()*5;
+  if(newTimerValue != lastTimerValue){
+    timerValueChangedAt = millis();
+    lastTimerValue = newTimerValue;
+  }
+
+  long millisSinceChange = millis() - timerValueChangedAt;
+
+  if(millisSinceChange > 3000 && !doneTillReset){
+    timeRemaining = (newTimerValue * 60 * 1000) - millisSinceChange;
+    if(timeRemaining == 0){
+      strikeBowl();
+      doneTillReset = true;
+    }
+    displayVal(timeRemaining);
+    display.drawImage(ohm,110,30,5,1);
+  }else{
+    doneTillReset = false;
+    displayVal(newTimerValue);
+    display.drawImage(empty_ohm,110,30,5,1);
+  }
+
   delay(10);
 }

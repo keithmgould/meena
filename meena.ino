@@ -1,5 +1,7 @@
 /*
-    make sure to uplaod with the sparkfun pro-micro (5V, 16MHz processor)  
+    make sure to uplaod with the sparkfun pro-micro (5V, 16MHz processor).
+
+    See README.md for usage details
 */
 
 #include <Wire.h>
@@ -12,33 +14,32 @@
 // instantiate the display
 Adafruit_SSD1306 display(4);
 
-
 // arduino pins
-constexpr int dialPinOne = 0;
-constexpr int dialPinTwo = 7;
-constexpr int buttonPin = 4;
-constexpr int sigPin = 5;
+constexpr int dialPinOne = 0; // interrupt #2
+constexpr int dialPinTwo = 7; // interrupt #4
+constexpr int buttonPin = 8;  // pushbutton input
+constexpr int sigPin = 5;     // outputs to IRF520 MOS FET
 
 // holds individual digits
 int digits[3] = {-1};
+
+// modes
+constexpr int INIT = 0;         // during startscreen
+constexpr int EDIT = 1;         // during timer setup
+constexpr int RUN = 2;          // during countdown
+constexpr int FINISHED = 3;     // once finished
+int mode;                       // holds the mode
 
 // holds dial turn quantity
 int tick = 0;
 
 // activates the solenoid for 1/10th of a second
-// striking the instrument
+// causing striker to strike
 void strike(){
   digitalWrite(sigPin, HIGH);
   delay(100);
   digitalWrite(sigPin, LOW);
 }
-
-// fetch potentiometer value and scale to between 1-120
-// int fetchAnalog(){
-//   int potVal = analogRead(potPin); // returns value in range [0,1023]
-//   averager.push(potVal);
-//   return 1 + int(averager.getAverage() * .01173);
-// }
 
 // beautiful example of bad programming.
 // TODO: just make fonts a 2D array.
@@ -69,13 +70,16 @@ void displayDigit(int num, int pos){
   }
 }
 
-/* 
-   takes an integer and stores each of the digits
-   in the digits[] array.
-*/
+
+// takes an integer and store each of the digits
+// in the digits[] array:
+// 105 => d[0]=1, d[1]=0,  d[2]=5
+// 82  => d[0]=8, d[1]=2,  d[2]=-1
+// 7   =? d[0]=7, d[1]=-1, d[2]=-1 
 void extractNewDigits(int val){
+  val = constrain(val, 1, 999);
   int factor = 1;
-  int temp=val;
+  int temp = val;
   int newDigit;
   int pos;
   
@@ -84,18 +88,22 @@ void extractNewDigits(int val){
     factor *= 10;
   }
 
+  temp = val;
   while(factor>1){
     factor /= 10;
-    newDigit = val / factor;
+    newDigit = temp / factor;
     digits[pos] = newDigit;
-    val = val % factor;
+    temp %= factor;
     pos++;
   }
+
+  if(val<100){ digits[2] = -1; }
+  if(val<10){ digits[1] = -1; }
 }
 
 // updates OLED
 void displayVal(int val){  
- val = constrain(val, 1, 120);
+ val = constrain(val, 1, 999);
  extractNewDigits(val);
  display.clearDisplay();
  displayDigit(digits[0],0);
@@ -119,26 +127,53 @@ void encoderEvent() {
   }
 }
 
-void setup() {
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
-  attachInterrupt(digitalPinToInterrupt(dialPinOne), encoderEvent, CHANGE);
-  
-  pinMode(sigPin, OUTPUT);
-  pinMode(1, OUTPUT); // tmp
-  showWelcomeScreen();
-}
-
-void loop(){
+void editMode(){
   for(int i = 120; i > 0; i--){
     displayVal(i);
     delay(500);
   }
 }
 
-long timerValueChangedAt;
-int lastTimerValue;
-int timeRemaining;
-bool doneTillReset = false;
+// countdown.
+// enter editMode once dial turned or knob pushed
+void runMode(){
+
+}
+
+// show a bunch of pretty stars :)
+// enter editMode once dial turned or knob pushed
+void finishedMode(){
+
+}
+
+void setup() {
+  mode = INIT;
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  attachInterrupt(digitalPinToInterrupt(dialPinOne), encoderEvent, CHANGE);
+  
+  pinMode(sigPin, OUTPUT);
+  pinMode(1, OUTPUT); // tmp
+  showWelcomeScreen();
+  mode = EDIT;
+}
+
+void loop(){
+  switch mode {
+    case EDIT: 
+      editMode(); break;
+    case RUN:
+      runMode(); break;
+    case FINISHED:
+      finishedMode(); break;
+    default:
+      editMode(); break;
+  }
+}
+
+// long timerValueChangedAt;
+// int lastTimerValue;
+// int timeRemaining;
+// bool doneTillReset = false;
 
 // void loopy() {
 //   int newTimerValue = fetchAnalog()*5;

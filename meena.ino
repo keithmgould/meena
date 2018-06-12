@@ -113,12 +113,13 @@ void extractNewDigits(int val){
 // updates OLED
 // val is an int between 1 and 999
 void displayVal(int val){  
+  Serial.print(val);
   val = constrain(val, 0, 999);
   extractNewDigits(val);
   display.fillRect(00,0,120,40, BLACK);
-  if(val<9){ 
+  if(val<=9){ 
     displayDigit(digits[0],0);
-  } else if(val< 99){
+  } else if(val<= 99){
     displayDigit(digits[0],0);
     displayDigit(digits[1],40);
   }else{
@@ -146,6 +147,7 @@ void calculateTicks(){
   long fakeTick = rawTick - fakeZero;
 
   tick = fakeTick / 4; // due to the knobs detent
+  tick += 1;
   tick = constrain(tick, 1, 999);
 }
 
@@ -197,7 +199,10 @@ void runMode(){
   int minutesRemaining = secondsRemaining / 60.0;
   displayVal(minutesRemaining);
   display.fillRect(0,50,120,20, BLACK);
-  hint(String(secondsRemaining % 60));
+  hint("Push knob to edit.");
+  display.fillRect(115,50,128,64, BLACK);
+  display.setCursor(115,55);
+  display.println(String(secondsRemaining % 60));
   display.display();
 }
 
@@ -218,9 +223,9 @@ void buttonEvent(){
 
 void drawFallingThings(const uint8_t *bitmap, uint8_t w, uint8_t h) {
   int numThings = 10;
-  int XPOS = 0
-  int YPOS = 1
-  int DELTAY = 2
+  int XPOS = 0;
+  int YPOS = 1;
+  int DELTAY = 2;
 
   uint8_t icons[numThings][3];
  
@@ -268,6 +273,7 @@ void showWelcomeScreen(){
 }
 
 void setup() {
+  Serial.begin(9600);
   mode = INIT;
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
   attachInterrupt(digitalPinToInterrupt(buttonPin), buttonEvent, RISING);

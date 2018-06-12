@@ -37,9 +37,6 @@ constexpr int FINISHED = 3;     // once finished
 // holds the mode
 int mode;
 
-
-
-
 volatile bool buttonPressed = false;
 
 long tick = 0;                              // determined by rotary encoder
@@ -206,7 +203,7 @@ void runMode(){
 
 void finishedMode(){
   display.clearDisplay();
-  drawStars(star,16,16);
+  drawFallingThings(miniSpiral,16,16);
 }
 
 long lastButtonPressAt = 0;
@@ -219,16 +216,16 @@ void buttonEvent(){
   buttonPressed = true;
 }
 
-#define NUMFLAKES 10
-#define XPOS 0
-#define YPOS 1
-#define DELTAY 2
+void drawFallingThings(const uint8_t *bitmap, uint8_t w, uint8_t h) {
+  int numThings = 10;
+  int XPOS = 0
+  int YPOS = 1
+  int DELTAY = 2
 
-void drawStars(const uint8_t *bitmap, uint8_t w, uint8_t h) {
-  uint8_t icons[NUMFLAKES][3];
+  uint8_t icons[numThings][3];
  
   // initialize
-  for (uint8_t f=0; f< NUMFLAKES; f++) {
+  for (uint8_t f=0; f< numThings; f++) {
     icons[f][XPOS] = random(display.width());
     icons[f][YPOS] = 0;
     icons[f][DELTAY] = random(5) + 1;
@@ -241,14 +238,14 @@ void drawStars(const uint8_t *bitmap, uint8_t w, uint8_t h) {
       return;
     } 
     // draw each icon
-    for (uint8_t f=0; f< NUMFLAKES; f++) {
+    for (uint8_t f=0; f< numThings; f++) {
       display.drawBitmap(icons[f][XPOS], icons[f][YPOS], bitmap, w, h, WHITE);
     }
     display.display();
     delay(200);
     
     // then erase it + move it
-    for (uint8_t f=0; f< NUMFLAKES; f++) {
+    for (uint8_t f=0; f< numThings; f++) {
       display.drawBitmap(icons[f][XPOS], icons[f][YPOS], bitmap, w, h, BLACK);
       // move it
       icons[f][YPOS] += icons[f][DELTAY];

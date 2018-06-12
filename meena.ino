@@ -7,31 +7,44 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <Encoder.h>
 #include "images/startScreen.h"
 #include "images/misc.h"
 #include "fonts/luna_fonts.h"
+
 
 // instantiate the display
 Adafruit_SSD1306 display(4);
 
 // arduino pins
-constexpr int dialPinOne = 0; // interrupt #2
-constexpr int dialPinTwo = 7; // interrupt #4
-constexpr int buttonPin = 8;  // pushbutton input
+constexpr int dialPinOne = 7; // interrupt #2
+constexpr int dialPinTwo = 0; // interrupt #4
+constexpr int buttonPin  = 1; // interrupt #3
 constexpr int sigPin = 5;     // outputs to IRF520 MOS FET
+
+// instantiate the encoder object
+Encoder myEnc(dialPinOne, dialPinTwo);
 
 // holds individual digits
 int digits[3] = {-1};
 
 // modes
 constexpr int INIT = 0;         // during startscreen
-constexpr int EDIT = 1;         // during timer setup
+constexpr int EDIT = 1;         // when user choosing time
 constexpr int RUN = 2;          // during countdown
 constexpr int FINISHED = 3;     // once finished
-int mode;                       // holds the mode
 
-// holds dial turn quantity
-int tick = 0;
+// holds the mode
+int mode;
+
+
+
+
+volatile bool buttonPressed = false;
+
+long tick = 0;                              // determined by rotary encoder
+unsigned long timerStartedAt = 0;           // time started at in milliseconds
+unsigned int desiredDurationInSeconds = 0;  // holds desired timer time in seconds
 
 // activates the solenoid for 1/10th of a second
 // causing striker to strike
@@ -65,8 +78,6 @@ void displayDigit(int num, int pos){
       display.drawBitmap(pos, 0,  number_8, 40, 40, 1); break;
     case 9:
       display.drawBitmap(pos, 0,  number_9, 40, 40, 1); break;
-    case -1:
-      display.drawBitmap(pos, 0,  number__, 40, 40, 1); break;
   }
 }
 
@@ -102,14 +113,21 @@ void extractNewDigits(int val){
 }
 
 // updates OLED
+// val is an int between 1 and 999
 void displayVal(int val){  
- val = constrain(val, 1, 999);
- extractNewDigits(val);
- display.clearDisplay();
- displayDigit(digits[0],0);
- if(val>9){ displayDigit(digits[1],40); }
- if(val>99){ displayDigit(digits[2],80); }
- display.display();
+  val = constrain(val, 1, 999);
+  extractNewDigits(val);
+  display.fillRect(00,0,120,40, BLACK);
+  if(val<9){ 
+    displayDigit(digits[0],0);
+  } else if(val< 99){
+    displayDigit(digits[0],0);
+    displayDigit(digits[1],40);
+  }else{
+    displayDigit(digits[0],0);
+    displayDigit(digits[1],40);
+    displayDigit(digits[2],80);     
+  }
 }
 
 void showWelcomeScreen(){
@@ -117,40 +135,110 @@ void showWelcomeScreen(){
   display.drawBitmap(0, 0,  startScreen, 128, 64, 1);
   display.display();
   delay(3000);
+  display.clearDisplay();
 }
 
-void encoderEvent() {
-  if(digitalRead(dialPinOne) == digitalRead(dialPinTwo)){
-    tick++;
-  } else {
-    tick--;
+
+
+/*
+    I'm using Encoder lib, and its a very
+    strange lib, and others were not working,
+    so I'm dealing with it.
+    The detents make me divide by 4.
+    The unavoidable negative count makes me
+    have a disgusting "fake" zero.
+*/
+long fakeZero = 0;
+void calculateTicks(){
+  long rawTick = myEnc.read();
+
+  if(rawTick < fakeZero){
+    fakeZero = rawTick;
   }
+  long fakeTick = rawTick - fakeZero;
+
+  tick = fakeTick / 4; // due to the knobs detent
+  tick = constrain(tick, 1, 999);
+}
+
+void hint(String str){
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(0,55);
+  display.println(str);  
 }
 
 void editMode(){
-  for(int i = 120; i > 0; i--){
-    displayVal(i);
-    delay(500);
+  calculateTicks();
+
+  if(buttonPressed){
+    display.clearDisplay();
+    buttonPressed = false;
+    desiredDurationInSeconds = tick;
+    timerStartedAt = millis(); 
+    mode = RUN;
+    return; 
   }
+
+  displayVal(tick);
+  hint("Push knob to start.");
+  display.display();
 }
 
-// countdown.
-// enter editMode once dial turned or knob pushed
+unsigned int calculateSecondsRemaining(){
+  unsigned long timeSinceStartMs = millis() - timerStartedAt;
+  unsigned long timeSinceStart = timeSinceStartMs / 1000;
+  return (desiredDurationInSeconds * 60) - timeSinceStart;
+}
+
 void runMode(){
+  unsigned int secondsRemaining = calculateSecondsRemaining();
+  Serial.println(secondsRemaining);
+  if(secondsRemaining <= 0){
+    strike();
+    mode = FINISHED;
+    return;
+  }
 
+  if(buttonPressed){
+    buttonPressed = false;
+    mode = EDIT;
+    return;
+  }
+
+  int minutesRemaining = secondsRemaining / 60.0;
+  displayVal(minutesRemaining);
+  display.fillRect(0,50,120,20, BLACK);
+  hint(String(secondsRemaining % 60));
+  display.display();
 }
 
-// show a bunch of pretty stars :)
-// enter editMode once dial turned or knob pushed
 void finishedMode(){
+  if(buttonPressed){
+    buttonPressed = false;
+    mode = EDIT;
+    return;
+  } 
 
+  hint("Done!!");
+  display.display();
+}
+
+long lastButtonPressAt = 0;
+
+void buttonEvent(){
+  long pressDelta = millis() - lastButtonPressAt;
+  if(pressDelta < 1000) { return; } //debounce
+
+  lastButtonPressAt = millis();
+  buttonPressed = true;
 }
 
 void setup() {
+  Serial.begin(9600);
   mode = INIT;
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
-  attachInterrupt(digitalPinToInterrupt(dialPinOne), encoderEvent, CHANGE);
-  
+  attachInterrupt(digitalPinToInterrupt(buttonPin), buttonEvent, RISING);
   pinMode(sigPin, OUTPUT);
   pinMode(1, OUTPUT); // tmp
   showWelcomeScreen();
@@ -158,7 +246,7 @@ void setup() {
 }
 
 void loop(){
-  switch mode {
+  switch (mode) {
     case EDIT: 
       editMode(); break;
     case RUN:
@@ -167,36 +255,6 @@ void loop(){
       finishedMode(); break;
     default:
       editMode(); break;
+    delay(10);
   }
 }
-
-// long timerValueChangedAt;
-// int lastTimerValue;
-// int timeRemaining;
-// bool doneTillReset = false;
-
-// void loopy() {
-//   int newTimerValue = fetchAnalog()*5;
-//   if(newTimerValue != lastTimerValue){
-//     timerValueChangedAt = millis();
-//     lastTimerValue = newTimerValue;
-//   }
-
-//   long millisSinceChange = millis() - timerValueChangedAt;
-
-//   if(millisSinceChange > 3000 && !doneTillReset){
-//     timeRemaining = (newTimerValue * 60 * 1000) - millisSinceChange;
-//     if(timeRemaining == 0){
-//       strike();
-//       doneTillReset = true;
-//     }
-//     displayVal(timeRemaining);
-//     display.drawImage(ohm,110,30,5,1);
-//   }else{
-//     doneTillReset = false;
-//     displayVal(newTimerValue);
-//     display.drawImage(empty_ohm,110,30,5,1);
-//   }
-
-//   delay(10);
-// }

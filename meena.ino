@@ -88,12 +88,16 @@ void displayDigit(int num, int pos){
 // 82  => d[0]=8, d[1]=2,  d[2]=-1
 // 7   =? d[0]=7, d[1]=-1, d[2]=-1 
 void extractNewDigits(int val){
-  val = constrain(val, 1, 999);
   int factor = 1;
   int temp = val;
   int newDigit;
   int pos;
   
+  if(val == 0){
+    digits[0] = digits[1] = digits[2] = 0;
+    return;
+  }
+
   while(temp){
     temp /= 10;
     factor *= 10;
@@ -107,15 +111,12 @@ void extractNewDigits(int val){
     temp %= factor;
     pos++;
   }
-
-  if(val<100){ digits[2] = -1; }
-  if(val<10){ digits[1] = -1; }
 }
 
 // updates OLED
 // val is an int between 1 and 999
 void displayVal(int val){  
-  val = constrain(val, 1, 999);
+  val = constrain(val, 0, 999);
   extractNewDigits(val);
   display.fillRect(00,0,120,40, BLACK);
   if(val<9){ 
@@ -129,16 +130,6 @@ void displayVal(int val){
     displayDigit(digits[2],80);     
   }
 }
-
-void showWelcomeScreen(){
-  display.clearDisplay();
-  display.drawBitmap(0, 0,  startScreen, 128, 64, 1);
-  display.display();
-  delay(3000);
-  display.clearDisplay();
-}
-
-
 
 /*
     I'm using Encoder lib, and its a very
@@ -193,7 +184,6 @@ unsigned int calculateSecondsRemaining(){
 
 void runMode(){
   unsigned int secondsRemaining = calculateSecondsRemaining();
-  Serial.println(secondsRemaining);
   if(secondsRemaining <= 0){
     strike();
     mode = FINISHED;
@@ -215,14 +205,8 @@ void runMode(){
 }
 
 void finishedMode(){
-  if(buttonPressed){
-    buttonPressed = false;
-    mode = EDIT;
-    return;
-  } 
-
-  hint("Done!!");
-  display.display();
+  display.clearDisplay();
+  drawStars(star,16,16);
 }
 
 long lastButtonPressAt = 0;
@@ -235,8 +219,58 @@ void buttonEvent(){
   buttonPressed = true;
 }
 
+#define NUMFLAKES 10
+#define XPOS 0
+#define YPOS 1
+#define DELTAY 2
+
+void drawStars(const uint8_t *bitmap, uint8_t w, uint8_t h) {
+  uint8_t icons[NUMFLAKES][3];
+ 
+  // initialize
+  for (uint8_t f=0; f< NUMFLAKES; f++) {
+    icons[f][XPOS] = random(display.width());
+    icons[f][YPOS] = 0;
+    icons[f][DELTAY] = random(5) + 1;
+  }
+
+  while (1) {
+    if(buttonPressed){
+      buttonPressed = false;
+      mode = EDIT;
+      return;
+    } 
+    // draw each icon
+    for (uint8_t f=0; f< NUMFLAKES; f++) {
+      display.drawBitmap(icons[f][XPOS], icons[f][YPOS], bitmap, w, h, WHITE);
+    }
+    display.display();
+    delay(200);
+    
+    // then erase it + move it
+    for (uint8_t f=0; f< NUMFLAKES; f++) {
+      display.drawBitmap(icons[f][XPOS], icons[f][YPOS], bitmap, w, h, BLACK);
+      // move it
+      icons[f][YPOS] += icons[f][DELTAY];
+      // if its gone, reinit
+      if (icons[f][YPOS] > display.height()) {
+        icons[f][XPOS] = random(display.width());
+        icons[f][YPOS] = 0;
+        icons[f][DELTAY] = random(5) + 1;
+      }
+    }
+  }
+}
+
+void showWelcomeScreen(){
+  display.clearDisplay();
+  display.drawBitmap(0, 0,  startScreen, 128, 64, 1);
+  display.display();
+  delay(3000);
+  display.clearDisplay();
+}
+
 void setup() {
-  Serial.begin(9600);
   mode = INIT;
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
   attachInterrupt(digitalPinToInterrupt(buttonPin), buttonEvent, RISING);

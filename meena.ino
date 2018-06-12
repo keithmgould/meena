@@ -203,6 +203,7 @@ void runMode(){
   if(buttonPressed){
     buttonPressed = false;
     mode = EDIT;
+    display.clearDisplay();
     return;
   }
 
